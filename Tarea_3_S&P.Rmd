@@ -1,0 +1,258 @@
+---
+title: "Tarea_3_S&P"
+author: "Carlos Reyes"
+date: "2025-04-13"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(dplyr)
+library(knitr)
+library(tidyverse)
+library(pracma)
+library(plotly)
+library(MASS)
+library(car)
+library(corrplot)
+library(rgl)
+library(scatterPlotMatrix)
+library(openxlsx)
+library(readxl)
+library(writexl)
+library(quantmod)
+library(qgraph)
+library(xts)
+library(zoo)
+library(dygraphs)
+library(ggpubr)
+knitr::knit_hooks$set(webgl = hook_webgl)
+```
+
+```{r}
+Empresas_data <- read_xlsx("Analisis numerico/Tareas/precio_cierre_df.xlsx")
+```
+
+```{r}
+begin_date ="2024-10-01"
+end_date = "2025-02-01"
+tickers <- c("AAPL", "AMZN", "META", "GOOG", "NVDA", "AVGO", "TSLA", "MSFT", "WMT", "XOM")
+getSymbols(tickers, src = "yahoo", from = begin_date, to = end_date, periodicity = "daily")
+class(AAPL)
+```
+
+```{r}
+lista <- lapply(tickers, function(x) Cl(get(x)))
+precio_cierre <- do.call(merge,lista)
+
+dygraph(precio_cierre)
+saveRDS(precio_cierre, "precio_cierre.RDS")
+
+```
+
+
+#por que lo elegí
+Yo elegi estas empresas debido a que pertenecen al indicador del s&P 500 el cual es uno de los principales etf ya que muestra como va la esconomia de EU, y en este etf se centran las 500 principales empresas de EU que son las que mueven al pais.
+
+```{r}
+# Matriz de correlación
+cor_matrix <- cor(Empresas_data[,-1], use = "complete.obs")
+print("Matriz de correlación:")
+print(cor_matrix)
+```
+
+
+```{r}
+# Visualización
+corrplot(cor_matrix, 
+         method = "color",
+         type = "upper", 
+         tl.srt = 45,
+         tl.cex = 0.8,
+title = "Matriz de Correlaciones Significativas",
+         mar = c(0,0,1,0))
+```
+
+```{r}
+cor_matrix <- cor(Empresas_data[,-1], use = "complete.obs")
+qgraph(cor_matrix, 
+       layout = "spring", 
+       labels = colnames(cor_matrix),
+       title = "Matriz de Correlaciones Significativas")
+```
+
+#Analisis
+
+La matriz de correlación muestra las relaciones lineales entre los precios de cierre de diferentes acciones. Se observa una fuerte correlación positiva (aproximadamente 0.8) entre AMZN y META, lo que sugiere que estas acciones tienden a moverse en la misma dirección. Las correlaciones disminuyen gradualmente para GOOG (0.6), NVDA (0.4) y AVGO (0.2), mientras que TSLA no muestra correlación lineal (0) con AMZN. Curiosamente, XOM exhibe una correlación negativa moderada (-0.6) con AMZN, indicando que cuando los precios de AMZN aumentan, los de XOM tienden a disminuir, y viceversa. Este patrón podría reflejar sectores económicos diferentes (tecnología vs energía) que a menudo se mueven en direcciones opuestas en respuesta a condiciones económicas cambiantes.
+
+#Amazon vs META
+
+```{r}
+names(Empresas_data)  # Mostrará todos los nombres de columnas disponibles
+```
+
+
+```{r}
+model1 <- lm(`AMZN.Close` ~ `META.Close`, data = Empresas_data)
+summary(model1)
+
+
+# Gráfica
+ggplot(Empresas_data, aes(x = `META.Close`, y = `AMZN.Close`)) +
+  geom_point() +
+  geom_smooth(method = "lm", color = "blue") +
+  labs(title = "Regresión: AMZN ~ META", 
+       x = "Precio META", y = "Precio AMZN") +
+  stat_regline_equation(label.y = max(Empresas_data$`AMZN.Close`))
+```
+#Analisis
+Este modelo de regresión revela una relación significativa y positiva entre los precios de Amazon (AMZN) y Meta (META), donde por cada dólar que aumenta META, AMZN tiende a subir aproximadamente $0.45, reflejando una correlación típica entre gigantes tecnológicos que comparten exposiciones similares a factores de mercado como el gasto en publicidad digital, el crecimiento del comercio electrónico y las condiciones macroeconómicas. El R² del 56.7% indica que más de la mitad de las variaciones en el precio de AMZN pueden explicarse por los movimientos de META, destacando cómo estas acciones, al pertenecer al mismo sector, suelen reaccionar en conjunto ante cambios en el sentimiento inversor, regulaciones o innovaciones tecnológicas. Sin embargo, el 43.3% restante de la variabilidad sugiere que AMZN también responde a factores únicos, como su diversificación en cloud computing (AWS) y logística
+
+##Google Vs Microsoft
+```{r}
+model2 <- lm(`GOOG.Close` ~ `MSFT.Close`, data = Empresas_data)
+summary(model2)
+
+# Gráfica
+ggplot(Empresas_data, aes(x = `MSFT.Close`, y = `GOOG.Close`)) +
+  geom_point(color = "red") +
+  geom_smooth(method = "lm", color = "darkred") +
+  labs(title = "Regresión: GOOG ~ MSFT",
+       x = "Precio.MSFT", y = "Precio.GOOG")
+```
+#Analisis
+La regresión entre Google (GOOG) y Microsoft (MSFT) muestra una relación positiva significativa (p = 4.01e-07), donde por cada dólar que aumenta MSFT, GOOG sube aproximadamente $0.58, reflejando la interdependencia entre estas dos líderes tecnológicas. Sin embargo, el R² del 27% indica que solo una parte moderada de los movimientos de Google se explican por los de Microsoft, lo que sugiere que ambos activos, aunque operan en sectores similares (nube, software y publicidad digital), están sujetos a dinámicas diferenciadas. La menor correlación en comparación con el par AMZN-META (56.7% de R²) podría deberse a que Google depende más de la publicidad online (como Meta), mientras que Microsoft tiene un modelo más diversificado hacia software empresarial y suscripciones (Office, Azure). El intercepto negativo (-66.7) carece de sentido práctico en este contexto, pero resalta que la relación no es proporcional en niveles absolutos de precio. La significancia estadística del modelo confirma que, pese a sus diferencias operativas, comparten exposición a riesgos sistémicos del sector tech, como cambios regulatorios o ciclos de inversión en TI.
+
+
+#NVDA vs AVGO
+```{r}
+model3 <- lm(`NVDA.Close` ~ `AVGO.Close`, data = Empresas_data)
+summary(model3)
+
+# Gráfica
+ggscatter(Empresas_data, x = "AVGO.Close", y = "NVDA.Close",
+          add = "reg.line", conf.int = TRUE,
+          cor.coef = TRUE, cor.method = "pearson",
+          title = "Regresión: NVDA ~ AVGO")
+```
+
+#Analisis
+El modelo de regresión entre NVIDIA (NVDA) y Broadcom (AVGO) muestra una relación no significativa (p = 0.463), donde el coeficiente de -0.0206 sugiere que, por cada dólar que aumenta AVGO, NVDA tiende a disminuir apenas $0.02, un efecto prácticamente irrelevante tanto estadística como económicamente. El R² del 0.66% confirma que los movimientos de AVGO explican menos del 1% de las variaciones en el precio de NVDA, destacando que estas empresas, aunque pertenecen al sector de semiconductores, responden a drivers distintos: NVDA está más vinculada a la demanda de GPUs para IA y gaming, mientras que AVGO depende de componentes para infraestructura de redes y telecomunicaciones. El intercepto significativo (141.36, p < 2e-16) refleja el valor base de NVDA cuando AVGO es cero, pero carece de interpretación práctica. La alta volatilidad residual (error estándar = 7.33) subraya la influencia de factores no capturados, como innovaciones tecnológicas específicas o cambios en la cadena de suministro. En resumen, este modelo no respalda una relación útil para predecir NVDA en función de AVGO, reforzando la necesidad de analizar variables sectoriales más relevantes para NVDA, como el crecimiento de la IA o los ciclos de chips.
+
+#TSLA vs XOM (relación inversa)
+```{r}
+model4 <- lm(`TSLA.Close` ~ `XOM.Close`, data = Empresas_data)
+summary(model4)
+
+# Gráfica
+ggplot(Empresas_data, aes(x = `XOM.Close`, y = `TSLA.Close`)) +
+  geom_point(color = "green4") +
+  geom_smooth(method = "lm", color = "darkgreen") +
+  labs(title = "Regresión: TSLA ~ XOM (Relación Inversa)",
+       x = "Precio XOM", y = "Precio TSLA")
+```
+
+#Analisis
+Este modelo revela una fuerte relación inversa entre Tesla (TSLA) y ExxonMobil (XOM), donde por cada dólar que aumenta el precio de XOM, el de TSLA disminuye $11.06, un efecto altamente significativo (p < 2e-16). El R² del 71.98% indica que los movimientos de XOM explican una proporción inusualmente alta de la variación en TSLA, reflejando una dinámica sectorial clara: Tesla (vehículos eléctricos y energía renovable) y ExxonMobil (petróleo y energía tradicional) operan como activos casi antagónicos en el mercado. Esta correlación negativa podría deberse a: 1) cambios en los precios del petróleo (que benefician a XOM pero perjudican la demanda de vehículos eléctricos), 2) rotación de capitales entre sectores "vieja vs. nueva energía", o 3) reacciones opuestas a políticas climáticas. El intercepto (1614.18) sugiere un valor teórico de TSLA si XOM cayera a cero, aunque carece de sentido práctico. La elevada significancia estadística (F-statistic = 210.7) refuerza que esta relación no es aleatoria, destacando cómo la transición energética se manifiesta en los mercados financieros. Inversores podrían usar este vínculo para estrategias de cobertura entre sectores.
+
+#Regresiones multiples
+
+##AMZN en función de META, GOOG y MSFT
+```{r}
+model5 <- lm(`AMZN.Close` ~ `META.Close` + `GOOG.Close` + `MSFT.Close`, data = Empresas_data)
+summary(model5)
+
+
+# Gráfica de residuos
+par(mfrow = c(2,2))
+plot(model5)
+```
+```{r}
+vif(model5) 
+```
+#Analisis
+
+Este modelo de regresión múltiple muestra que los precios de **Google (GOOG)** y **Microsoft (MSFT)** son predictores altamente significativos del precio de **Amazon (AMZN)**, mientras que **Meta (META)** no aporta una relación estadísticamente significativa (p = 0.11). Específicamente, por cada dólar que aumenta **GOOG**, AMZN sube **$0.99** (p < 2e-16), y por cada dólar que aumenta **MSFT**, AMZN aumenta **$0.36** (p = 4.27e-07). El **R² ajustado del 89.47%** indica que estas tres variables tecnológicas explican casi el **90% de las variaciones** en el precio de AMZN, destacando una fuerte interdependencia sectorial. Los **valores VIF** (todos < 2.5) confirman que no hay multicolinealidad problemática entre los predictores. El intercepto negativo (-157.12) carece de interpretación práctica, pero refuerza que la relación no es proporcional en términos absolutos. Este modelo sugiere que, aunque AMZN está más correlacionada con GOOG (posiblemente por su exposición compartida al comercio electrónico y publicidad digital), también responde a movimientos de MSFT (quizás por competencia en servicios en la nube). La no significancia de META podría deberse a que su modelo de negocio (redes sociales) tiene menos sinergias directas con el core de Amazon. En resumen, el modelo es robusto para explicar los movimientos de AMZN en función de sus pares tecnológicos, pero excluir META no afectaría su poder predictivo.
+
+#NVDA en función de AVGO, TSLA y XOM
+```{r}
+model6 <- lm(`NVDA.Close` ~ `AVGO.Close` + `TSLA.Close` + `XOM.Close`, data = Empresas_data)
+summary(model6)
+
+
+# Gráfica de efectos
+library(effects)
+plot(allEffects(model6), main = "Efectos en NVDA")
+```
+
+
+```{r}
+vif(model6)
+```
+
+#Analisis
+
+Este modelo revela que los precios de **Tesla (TSLA)** y **ExxonMobil (XOM)** tienen una relación significativa con **NVIDIA (NVDA)**, aunque con un poder explicativo limitado (**R² ajustado = 4.47%**). Por cada dólar que aumenta TSLA, NVDA sube **$0.044** (p = 0.021), mientras que por cada dólar que aumenta XOM, NVDA aumenta **$0.687** (p = 0.031). Sorprendentemente, **Broadcom (AVGO)** no muestra ninguna relación significativa con NVDA (p = 0.803), lo que sugiere que, aunque ambas son empresas de semiconductores, sus drivers de mercado son distintos. El bajo R² indica que estos tres activos explican menos del 5% de las variaciones en el precio de NVDA, destacando que factores no incluidos en el modelo (como avances en IA, demanda de GPUs o restricciones de supply chain) dominan su comportamiento. El intercepto positivo (40.66) no es significativo (p = 0.383), y el p-value global del modelo (0.084) está cerca del umbral de significancia (0.05), lo que sugiere que la relación colectiva es marginalmente relevante. En términos bursátiles, este modelo no es útil para predecir NVDA, pero la conexión positiva con TSLA (tech) y XOM (energía) podría reflejar ciclos económicos donde NVDA se beneficia de mayores inversiones en tecnología y energía simultáneamente. **Conclusión:** NVDA opera con lógicas propias, apenas influida por estos activos.
+
+
+#MSFT en función de AMZN, GOOG y WMT
+
+```{r}
+model7 <- lm(`MSFT.Close` ~ `AMZN.Close` + `GOOG.Close` + `WMT.Close`, data = Empresas_data)
+summary(model7)
+
+
+# Gráfica 3D 
+library(scatterplot3d)
+with(Empresas_data, {
+  scatterplot3d(`AMZN.Close`, `GOOG.Close`, `MSFT.Close`, 
+                highlight.3d = TRUE, angle = 55,
+                main = "Regresión MSFT ~ AMZN + GOOG")
+})
+```
+
+
+```{r}
+vif(model7)
+```
+
+#Analisis
+
+Este modelo muestra que **Amazon (AMZN)** y **Google (GOOG)** son predictores significativos del precio de **Microsoft (MSFT)**, mientras que **Walmart (WMT)** no aporta ninguna relación relevante (p = 0.750). Específicamente:  
+- Por cada dólar que aumenta **AMZN**, MSFT sube **$0.876** (p = 0.0006), reflejando una correlación positiva entre estas gigantes tecnológicas, posiblemente por su exposición compartida a la nube (Azure vs. AWS) y servicios digitales.  
+- Por cada dólar que aumenta **GOOG**, MSFT **disminuye $0.578** (p = 0.0056), una relación inversa que podría indicar competencia en áreas como software empresarial (Office 365 vs. Google Workspace) o publicidad digital.  
+
+El **R² ajustado del 48.6%** indica que estas variables explican casi la mitad de las variaciones en MSFT, destacando su dependencia del desempeño del sector tech. La no significancia de WMT (comercio minorista) confirma que su dinámica de mercado es ajena a la de Microsoft. El intercepto positivo (360.54, p < 2e-16) carece de interpretación práctica pero refuerza el peso de factores intrínsecos de MSFT no capturados por el modelo. En resumen, MSFT responde principalmente a movimientos de sus pares tecnológicos (AMZN y GOOG), pero con efectos opuestos: se alinea con AMZN (cooperación/competencia en nube) mientras compite directamente con GOOG en software. **Inversión clave:** Monitorear estas relaciones ayuda a identificar oportunidades de cobertura o rotación sectorial.
+
+#Conclusion sobre el impacto en la economia de EU
+ 
+
+Los modelos revelan patrones clave sobre cómo los gigantes tecnológicos y energéticos interactúan, reflejando tendencias económicas más profundas en EE.UU.:  
+
+1. **Dominio Tecnológico y Correlaciones Sectoriales**:  
+   - Las fuertes relaciones entre **AMZN, META, GOOG y MSFT** (con R² hasta del 90%) muestran cómo el sector tecnológico se mueve como un bloque, impulsado por inversiones en IA, nube y consumo digital. Su interdependencia subraya su peso en el S&P 500 y su sensibilidad común a tasas de interés o regulaciones antitrust.  
+
+2. **Disrupción Energética**:  
+   - La **relación inversa TSLA-XOM** (R² del 72%) ejemplifica la transición energética: cuando el petróleo (XOM) sube, los inversionistas apuestan menos por vehículos eléctricos (TSLA), y viceversa. Esto refleja tensiones entre la "vieja economía" (energía fósil) y la "nueva economía" (energía limpia).  
+
+3. **Semiconductores: Un Caso Atípico**:  
+   - **NVDA** mostró poca correlación con AVGO (R² del 0.6%), destacando que su valoración depende más de la demanda de GPUs para IA que de tendencias sectoriales generales. Esto resalta el rol de la innovación específica (como los chips para ChatGPT) frente a ciclos económicos tradicionales.  
+
+4. **Competencia y Complementariedad**:  
+   - La **relación negativa MSFT-GOOG** sugiere competencia en software y publicidad, mientras que **MSFT-AMZN** muestra cooperación/competencia en la nube. Estas dinámicas afectan la productividad empresarial y los precios de servicios digitales en toda la economía.  
+
+**Impacto Macroeconómico**:  
+- **Riesgo Sistémico**: Las correlaciones tech implican que un shock en una (ej: regulación a META) podría arrastrar al sector.  
+- **Transición Estructural**: La anti-correlación TSLA-XOM evidencia cómo la descarbonización redefine industrias y flujos de capital.  
+- **Innovación como Driver**: El caso NVDA revela que la economía estadounidense sigue liderando en sectores de alta tecnología, pero con ganadores muy específicos.  
+
+En resumen, estos modelos capturan la dualidad de la economía de EE.UU.: un núcleo tecnológico hiperconectado que impulsa el crecimiento, pero con sectores tradicionales (energía, retail) que siguen influyendo en patrones de inversión y consumo. La inversión en IA y energías limpias parece estar redefiniendo las reglas del juego.
+
+
+
+
+
+
+
+
+

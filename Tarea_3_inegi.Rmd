@@ -1,0 +1,194 @@
+---
+title: "Tarea 3 INEGI"
+author: "Carlos Reyes"
+date: "2025-04-12"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(knitr)
+library(tidyverse)
+library(pracma)
+library(plotly)
+library(MASS)
+#library(ISLR2)
+library(car)
+library(corrplot)
+library(rgl)
+library(scatterPlotMatrix)
+
+
+library(openxlsx)
+library(readxl)
+library(writexl)
+library(quantmod)
+library(xts)
+library(zoo)
+library(dygraphs)
+knitr::knit_hooks$set(webgl = hook_webgl)
+```
+
+```{r}
+inegi_data <- read_xlsx("./inegi_subdata.xlsx")
+```
+
+```{r}
+data_numeric <- inegi_data %>%  select_if(is.numeric)
+```
+
+
+```{r}
+
+corr_matrix <- cor(data_numeric, use = "complete.obs")
+print("Matriz de correlación:")
+print(corr_matrix)
+
+```
+
+
+```{r}
+# 1. Calcular matrices
+data_numeric <- inegi_data %>% select_if(is.numeric)
+corr_matrix <- cor(data_numeric, use = "complete.obs")
+p_matrix <- cor.mtest(data_numeric)  
+
+
+stopifnot(identical(dim(corr_matrix), dim(p_matrix)))
+stopifnot(identical(colnames(corr_matrix), colnames(p_matrix)))
+
+corrplot(
+  corr_matrix, 
+  method = "color",        
+  type = "upper",          
+  tl.col = "black",       
+  tl.srt = 45,
+  tl.cex = 0.8 ,
+  p.mat = p_matrix,        
+  sig.level = 0.05,       
+  insig = "blank",         
+  title = "Matriz de Correlaciones Significativas",
+  mar = c(0, 0, 1, 0),     
+  
+  col = colorRampPalette(c("darkred", "white", "darkgreen"))(100)  
+)
+```
+#Regresiones lineales
+
+#Ejemplo 1  IVF_Construccion vs. Tipo_Cambio_Nominal
+
+```{r}
+modelo_construccion <- lm(IVF_Construccion ~ Tipo_Cambio_Nominal, data = inegi_data)
+summary(modelo_construccion)
+ggplot(inegi_data, aes(x = Tipo_Cambio_Nominal, y = IVF_Construccion)) +
+  geom_point(color = "darkblue") +
+  geom_smooth(method = "lm", color = "red") +
+  labs(title = "IVF Construcción vs. Tipo de Cambio Nominal",
+       x = "Tipo de Cambio Nominal (MXN/USD)",
+       y = "Inversión en Construcción") +
+  theme_minimal()
+```
+#Analisis
+Una depreciación del peso (↑ tipo de cambio) podría estar asociada a un aumento en la inversión en construcción.
+
+Posibles explicaciones:
+
+Costos de materiales importados: Si la construcción depende de insumos importados (ej: acero), una depreciación encarece los costos, pero podría incentivar la inversión en proyectos locales para sustituir importaciones.
+
+Especulación inmobiliaria: En contextos de depreciación, los inversionistas podrían buscar refugio en activos reales (ej: bienes raíces).
+
+R² moderado (38.07%):
+
+Aunque el tipo de cambio es relevante, otros factores como la demanda interna, tasas de interés o clima político también influyen fuertemente.
+
+#Ejemplo 2 Exportaciones_No_Petroleras vs. Tipo_Cambio_Real_Multilateral
+```{r}
+modelo_expo <- lm(Exportaciones_No_Petroleras ~ Tipo_Cambio_Real_Multilateral, data = inegi_data)
+summary(modelo_expo)
+ggplot(inegi_data, aes(x = Tipo_Cambio_Real_Multilateral, y = Exportaciones_No_Petroleras)) +
+  geom_point(color = "purple") +
+  geom_smooth(method = "lm", color = "gold") +
+  labs(title = "Exportaciones No Petroleras vs. Tipo de Cambio Real",
+       x = "Tipo de Cambio Real Multilateral",
+       y = "Exportaciones No Petroleras (USD)") +
+  theme_minimal()
+```
+
+#analisis
+El Tipo de Cambio Real Multilateral (TCRM) ajusta el tipo de cambio nominal por diferencias de inflación entre México y sus socios comerciales. Un TCRM alto (peso depreciado en términos reales) hace las exportaciones más competitivas.
+
+Coeficiente del TCRM (-61.36):
+
+Signo negativo: Contrario a lo esperado teóricamente. Un aumento en el TCRM (peso más depreciado en términos reales) se asocia con una reducción en las exportaciones no petroleras.
+
+Magnitud: Por cada punto de aumento en el TCRM, las exportaciones disminuyen en 61.36 millones de USD.
+
+#Regresiones Múltiples (Nuevas Combinaciones)
+#Ejemplo. 1. IPC_BMV ~ TIIE + Reservas_Internacionales
+
+```{r}
+modelo_ipc <- lm(IPC_BMV ~ TIIE + Reservas_Internacionales, data = inegi_data)
+summary(modelo_ipc)
+scatter3d(IPC_BMV ~ TIIE + Reservas_Internacionales, data = inegi_data,
+          surface = TRUE, grid = TRUE, col.axis = "blue")
+
+
+
+
+# Gráfico interactivo 3D
+plot_ly(
+  data = inegi_data,
+  x = ~TIIE,
+  y = ~Reservas_Internacionales,
+  z = ~IPC_BMV,
+  type = "scatter3d",
+  mode = "markers",
+  marker = list(size = 5, color = "blue"),
+  text = ~paste("TIIE:", TIIE, "<br>Reservas:", Reservas_Internacionales, "<br>IPC:", IPC_BMV)
+) %>%
+  add_trace(
+    z = predict(modelo_ipc),
+    x = ~TIIE,
+    y = ~Reservas_Internacionales,
+    type = "mesh3d",
+    name = "Plano de Regresión"
+  ) %>%
+  layout(
+    title = "Regresión IPC_BMV ~ TIIE + Reservas Internacionales",
+    scene = list(
+      xaxis = list(title = "TIIE (%)"),
+      yaxis = list(title = "Reservas Internacionales"),
+      zaxis = list(title = "IPC_BMV")
+    )
+  )
+```
+
+
+#Analisis 
+El coeficiente negativo de -1.042 para la TIIE indica que un aumento de un punto porcentual en esta tasa está asociado con una disminución de aproximadamente 1.042 unidades en el IPC_BMV. Este hallazgo es consistente con la teoría económica: tasas de interés más altas incrementan el costo del financiamiento para las empresas, lo que puede reducir sus expectativas de ganancias y, en consecuencia, disminuir su atractivo para los inversionistas. El valor-p extremadamente bajo (<2e-16) confirma que esta relación es altamente significativa, destacando el papel crítico de la política monetaria en el desempeño del mercado bursátil.
+
+Por otro lado, las Reservas Internacionales muestran un efecto positivo, con un coeficiente de 1.158e-05. Esto significa que por cada millón de dólares adicional en reservas, el IPC_BMV aumenta en aproximadamente 0.01158 unidades. Aunque la magnitud parece pequeña, es estadísticamente significativa (p <2e-16), lo que sugiere que mayores reservas generan confianza en la estabilidad económica del país, atrayendo inversiones y fortaleciendo el mercado de valores. Este resultado subraya la importancia de mantener reservas sólidas para sustentar la confianza de los inversionistas.
+
+#Ejemplo 2. Actividades_Terciarias ~ Actividad_Industrial + Exportaciones_Totales
+```{r}
+modelo_terciarias <- lm(Actividades_Terciarias ~ Actividad_Industrial + Exportaciones_Totales, data = inegi_data)
+summary(modelo_terciarias)
+vif(modelo_terciarias)  
+
+
+
+ggplot(inegi_data, aes(x = Actividad_Industrial, y = Actividades_Terciarias)) +
+  geom_point(color = "darkgreen") +
+  geom_smooth(method = "lm", se = FALSE, color = "red") +
+  labs(title = "Relación parcial: Actividad Industrial vs. Terciarias")
+```
+
+#Analisis
+El coeficiente de 0.4658 para la Actividad Industrial indica que por cada punto de crecimiento en este sector, las Actividades Terciarias aumentan en aproximadamente 0.466 unidades, manteniendo constantes las exportaciones. Este efecto positivo y altamente significativo (p < 2e-16) refleja la interdependencia entre industria y servicios: un sector manufacturero robusto genera demanda de servicios logísticos, financieros y profesionales, creando un efecto multiplicador en la economía.
+
+
+
+
+
+
+
