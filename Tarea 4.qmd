@@ -1,0 +1,607 @@
+---
+title: "Tarea 4"
+author: "Carlos Antonio Reyes Gutiérrez"
+format: html
+editor: visual
+---
+
+
+```{python}
+import numpy as np
+import pandas as pd
+import matplotlib.pyplot as plt
+from datetime import datetime
+import seaborn as sns
+import plotly.graph_objects as go
+from plotly.subplots import make_subplots
+from statsmodels.tsa.stattools import adfuller
+from statsmodels.tsa.seasonal import seasonal_decompose
+from statsmodels.tsa.ar_model import AutoReg
+from statsmodels.graphics.tsaplots import plot_pacf
+
+
+```
+
+```{python}
+
+inegi_data = pd.read_excel("./inegi_data.xlsx", parse_dates=['Periodo'])
+
+
+inegi_data = inegi_data[inegi_data['Periodo'].dt.year >= 2016]
+
+
+MXN_series = inegi_data.set_index('Periodo')['Cetes_28_Dias']
+
+
+print("\nInformación de la serie temporal:")
+print(MXN_series.describe())
+print(f"\nFrecuencia: {pd.infer_freq(MXN_series.index)}")
+print(f"Rango de fechas: {MXN_series.index.min()} a {MXN_series.index.max()}")
+
+# Gráfico de la serie temporal 
+plt.figure(figsize=(12, 6))
+MXN_series.plot(title='Cetes 28 Días desde 2016')
+plt.ylabel('Tasa')
+plt.xlabel('Fecha')
+plt.grid(True)
+plt.show()
+```
+#Comparación anual
+
+```{python}
+df = MXN_series.reset_index()
+df['year'] = df['Periodo'].dt.year
+df['month'] = df['Periodo'].dt.month_name()
+
+plt.figure(figsize=(12, 6))
+sns.lineplot(data=df, x='month', y='Cetes_28_Dias', hue='year', 
+             palette='Paired', marker='o')
+plt.title('Comparación Anual de Cetes 28 Días')
+plt.xlabel('Mes')
+plt.ylabel('Tasa')
+plt.legend(title='Año', bbox_to_anchor=(1.05, 1), loc='upper left')
+plt.tight_layout()
+plt.show()
+```
+
+#Comparación mensual
+```{python}
+plt.figure(figsize=(12, 6))
+sns.lineplot(data=df, x='year', y='Cetes_28_Dias', hue='month', 
+             palette='Paired', marker='o')
+plt.title('Comparación Mensual de Cetes 28 Días')
+plt.xlabel('Año')
+plt.ylabel('Tasa')
+plt.legend(title='Mes', bbox_to_anchor=(1.05, 1), loc='upper left')
+plt.tight_layout()
+plt.show()
+```
+## Boxplot trimestral
+
+```{python}
+df['quarter'] = df['Periodo'].dt.quarter
+df['year'] = df['Periodo'].dt.year
+df['quarter_label'] = df['year'].astype(str) + '-Q' + df['quarter'].astype(str)
+
+plt.figure(figsize=(12, 6))
+sns.boxplot(data=df, x='quarter_label', y='Cetes_28_Dias', 
+            palette='Paired')
+plt.title('Distribución Trimestral de Cetes 28 Días')
+plt.xlabel('Trimestre')
+plt.ylabel('Tasa')
+plt.xticks(rotation=45)
+plt.tight_layout()
+plt.show()
+```
+## Heatmap
+
+```{python}
+
+heatmap_data = df.pivot_table(values='Cetes_28_Dias', 
+                             index='year', 
+                             columns='month', 
+                             aggfunc='mean')
+
+
+month_order = ['January', 'February', 'March', 'April', 'May', 'June', 
+               'July', 'August', 'September', 'October', 'November', 'December']
+heatmap_data = heatmap_data[month_order]
+
+plt.figure(figsize=(12, 6))
+sns.heatmap(heatmap_data, cmap='Spectral', annot=True, fmt=".1f", 
+            linewidths=.5, cbar_kws={'label': 'Tasa'})
+plt.title('Heatmap de Cetes 28 Días por Año y Mes')
+plt.xlabel('Mes')
+plt.ylabel('Año')
+plt.tight_layout()
+plt.show()
+```
+
+##surface
+
+```{python}
+
+
+df = MXN_series.reset_index()
+df['year'] = df['Periodo'].dt.year
+df['month'] = df['Periodo'].dt.month
+df['day'] = df['Periodo'].dt.day
+
+#  matriz para el surface
+heatmap_data = df.pivot_table(values='Cetes_28_Dias', 
+                             index='year', 
+                             columns='month', 
+                             aggfunc='mean')
+
+# Gráfico de superficie 
+fig = go.Figure(data=[go.Surface(z=heatmap_data.values,
+                                 x=heatmap_data.columns,
+                                 y=heatmap_data.index,
+                                 colorscale='Viridis')])
+
+fig.update_layout(
+    title='Superficie temporal de Cetes 28 Días',
+    scene=dict(
+        xaxis_title='Mes',
+        yaxis_title='Año',
+        zaxis_title='Tasa'
+    ),
+    autosize=True,
+    width=800,
+    height=600
+)
+
+fig.show()
+```
+
+
+## Media muestral
+
+```{python}
+inegi_data = pd.read_excel("./inegi_data.xlsx", parse_dates=['Periodo'])
+MXN_series = inegi_data[inegi_data['Periodo'].dt.year >= 2016].set_index('Periodo')['Cetes_28_Dias']
+
+# media muestral
+media = np.mean(MXN_series)
+T = len(MXN_series)
+
+#  resultados
+print(f"Media muestral de Cetes 28 Días (desde 2016): {media:.6f}")
+print(f"Número de observaciones (T): {T}")
+
+#  Gráfico 
+plt.figure(figsize=(10, 5))
+MXN_series.plot(title='Serie Temporal de Cetes 28 Días', label='Valores')
+plt.axhline(media, color='red', linestyle='--', label=f'Media = {media:.2f}')
+plt.ylabel('Tasa')
+plt.xlabel('Fecha')
+plt.legend()
+plt.grid(True) 
+plt.tight_layout()
+plt.show()
+
+```
+
+
+## Varianza muestral 
+```{python}
+
+
+
+inegi_data = pd.read_excel("./inegi_data.xlsx", parse_dates=['Periodo'])
+MXN_series = inegi_data[inegi_data['Periodo'].dt.year >= 2016]['Cetes_28_Dias']
+
+# varianza
+varianza = np.var(MXN_series)  
+T = len(MXN_series)
+
+print("\n" + "="*50)
+print("CÁLCULO DE VARIANZA PARA CETES 28 DÍAS")
+print("="*50)
+print(f"\nFórmula matemática:")
+print(r"         1       T")
+print(r"s² = ────   ∑   (y_t - ȳ)²")
+print(r"       T-1   t=1")
+print("\nDonde:")
+print(f"- T = {T} (número de observaciones desde 2016)")
+print(f"- y_t = valores de Cetes 28 Días")
+print(f"- ȳ = {np.mean(MXN_series):.6f} (media muestral)")
+print("\n" + "-"*50)
+print(f"Varianza calculada: {varianza:.6f}")
+print("-"*50 + "\n")
+
+```
+
+
+## Autocovarianza muestral
+```{python}
+def autocovarianza_manual(serie, max_lag=20):
+    n = len(serie)
+    media = np.mean(serie)
+    autocov = []
+    
+    for lag in range(max_lag + 1):
+        sum_cov = 0.0
+        for t in range(n - lag):
+            sum_cov += (serie[t + lag] - media) * (serie[t] - media)
+        autocov.append(sum_cov / n)
+    
+    return np.array(autocov)
+
+# datos
+inegi_data = pd.read_excel("./inegi_data.xlsx", parse_dates=['Periodo'])
+MXN_series = inegi_data[inegi_data['Periodo'].dt.year >= 2016].set_index('Periodo')['Cetes_28_Dias']
+
+
+autocov = autocovarianza_manual(MXN_series)
+
+# resultados
+print("\nFunción de Autocovarianza Muestral (primeros 5 lags):")
+for lag in range(5):
+    print(f"Lag {lag}: {autocov[lag]:.6f}")
+
+# Gráfico
+plt.figure(figsize=(12, 6))
+markerline, stemlines, baseline = plt.stem(range(len(autocov)), autocov)
+plt.setp(stemlines, 'linewidth', 1)  
+plt.title('Función de Autocovarianza Muestral de Cetes 28 Días')
+plt.xlabel('Lag')
+plt.ylabel('Autocovarianza')
+plt.grid(True)
+plt.tight_layout()
+plt.show()
+```
+
+## Autocorrelación muestral
+
+```{python}
+def autocorrelacion_manual(serie, max_lag=20):
+    n = len(serie)
+    media = np.mean(serie)
+    varianza = np.var(serie, ddof=0)
+    autocorr = []
+    
+    for lag in range(max_lag + 1):
+        cov = 0.0
+        for t in range(n - lag):
+            cov += (serie[t + lag] - media) * (serie[t] - media)
+        autocorr.append((cov / n) / varianza)
+    
+    return np.array(autocorr)
+
+#  datos
+inegi_data = pd.read_excel("./inegi_data.xlsx", parse_dates=['Periodo'])
+MXN_series = inegi_data[inegi_data['Periodo'].dt.year >= 2016].set_index('Periodo')['Cetes_28_Dias']
+
+
+autocorr = autocorrelacion_manual(MXN_series)
+
+# Gráfico 
+plt.figure(figsize=(12, 6))
+plt.stem(range(len(autocorr)), autocorr, linefmt='blue', markerfmt='o', basefmt='gray')
+plt.axhline(y=0, color='black', linestyle='-')
+plt.title('Función de Autocorrelación Muestral (ACF) ')
+plt.xlabel('Lag')
+plt.ylabel('Autocorrelación')
+plt.grid(True)
+plt.show()
+```
+
+
+### Autocorrelación
+```{python}
+import plotly.graph_objects as go
+from statsmodels.tsa.stattools import acf
+
+# Autocorrelación 
+autocorr = acf(MXN_series, nlags=20)
+
+fig = go.Figure()
+fig.add_trace(go.Bar(
+    x=list(range(len(autocorr))),
+    y=autocorr,
+    name='ACF'
+))
+
+# Líneas de confianza 
+conf = 1.96 / np.sqrt(len(MXN_series))
+fig.add_hline(y=conf, line_dash="dot", line_color="red")
+fig.add_hline(y=-conf, line_dash="dot", line_color="red")
+
+fig.update_layout(
+    title='Autocorrelación (ACF) Interactiva - Cetes 28 Días',
+    xaxis_title='Lag',
+    yaxis_title='Autocorrelación',
+    showlegend=False
+)
+fig.show()
+```
+### Lags
+```{python}
+from statsmodels.graphics.tsaplots import plot_acf
+
+
+plt.figure(figsize=(12, 6))
+plot_acf(MXN_series, lags=20, alpha=0.05, 
+         title='Lags de Autocorrelación - Cetes 28 Días',
+         marker='o', markersize=5, color='blue', vlines_kwargs={'colors':'blue'})
+plt.xlabel('Lag')
+plt.ylabel('Autocorrelación')
+plt.grid(True)
+plt.tight_layout()
+plt.show()
+
+
+def plot_lags(series, lags=12):
+    plt.figure(figsize=(12, 8))
+    for i in range(1, lags+1):
+        plt.subplot(3, 4, i)
+        pd.plotting.lag_plot(series, lag=i)
+        plt.title(f'Lag {i}')
+    plt.tight_layout()
+    plt.show()
+
+plot_lags(MXN_series, lags=12)
+```
+
+
+## Estacionariedad
+```{python}
+
+
+inegi_data = pd.read_excel("./inegi_data.xlsx", parse_dates=['Periodo'])
+MXN_series = inegi_data[inegi_data['Periodo'].dt.year >= 2016].set_index('Periodo')['Cetes_28_Dias']
+
+#  prueba ADF
+result = adfuller(MXN_series, autolag='AIC') 
+
+#  resultados
+print('='*60)
+print('Prueba de Dickey-Fuller Aumentada (ADF Test)')
+print('='*60)
+print(f'Estadístico ADF: {result[0]:.6f}')
+print(f'Valor p: {result[1]:.6f}')
+print('Valores críticos:')
+for key, value in result[4].items():
+    print(f'   {key}: {value:.6f}')
+
+# Interpretación
+print('\nInterpretación:')
+if result[1] <= 0.05:
+    print('-> Rechazamos la hipótesis nula (H0)')
+    print('-> La serie es ESTACIONARIA')
+else:
+    print('-> No podemos rechazar la hipótesis nula (H0)')
+    print('-> La serie NO es estacionaria')
+print('='*60)
+```
+
+## Diferenciación
+```{python}
+
+
+inegi_data = pd.read_excel("./inegi_data.xlsx", parse_dates=['Periodo'])
+MXN_series = inegi_data[inegi_data['Periodo'].dt.year >= 2016].set_index('Periodo')['Cetes_28_Dias']
+
+# 1. Diferenciación 
+MXN_diff = MXN_series.diff().dropna()  # .dropna() elimina el primer valor NaN
+
+# 2. Gráfico interactivo 
+plt.figure(figsize=(12, 6))
+plt.plot(MXN_diff, label='Serie diferenciada (1ª diferencia)')
+plt.title('Cetes 28 Días - Primera Diferencia')
+plt.ylabel('Cambio en la tasa')
+plt.xlabel('Fecha')
+plt.legend()
+plt.grid(True)
+plt.tight_layout()
+plt.show()
+
+# 3. Prueba ADF de estacionariedad
+adf_result = adfuller(MXN_diff, autolag='AIC')  # autolag='AIC' es el default en R
+
+# resultados
+print('\n' + '='*60)
+print('Prueba de Dickey-Fuller Aumentada (Serie Diferenciada)')
+print('='*60)
+print(f'Estadístico ADF: {adf_result[0]:.6f}')
+print(f'p-valor: {adf_result[1]:.6f}')
+print('Valores críticos:')
+for key, value in adf_result[4].items():
+    print(f'   {key}: {value:.6f}')
+
+# Interpretación
+print('\nInterpretación:')
+if adf_result[1] <= 0.05:
+    print('-> La serie diferenciada es ESTACIONARIA (rechazamos H0)')
+else:
+    print('-> La serie diferenciada NO es estacionaria (no podemos rechazar H0)')
+print('='*60)
+```
+#Descomoposición
+
+```{python}
+
+
+inegi_data = pd.read_excel("./inegi_data.xlsx", parse_dates=['Periodo'])
+MXN_series = inegi_data[inegi_data['Periodo'].dt.year >= 2016].set_index('Periodo')['Cetes_28_Dias']
+
+# 1. Descomposición aditiva 
+decomposition = seasonal_decompose(MXN_series, model='additive', period=12)  # period=12 para datos mensuales
+
+# 2. Gráficos de descomposición
+plt.figure(figsize=(12, 8))
+
+# Serie original
+plt.subplot(4, 1, 1)
+plt.plot(decomposition.observed)
+plt.title('Serie Original')
+plt.grid(True)
+
+# Tendencia
+plt.subplot(4, 1, 2)
+plt.plot(decomposition.trend)
+plt.title('Componente de Tendencia')
+plt.grid(True)
+
+# Estacionalidad
+plt.subplot(4, 1, 3)
+plt.plot(decomposition.seasonal)
+plt.title('Componente Estacional')
+plt.grid(True)
+
+# Residuales
+plt.subplot(4, 1, 4)
+plt.plot(decomposition.resid)
+plt.title('Componente Residual')
+plt.grid(True)
+
+plt.tight_layout()
+plt.show()
+
+
+
+
+fig = make_subplots(rows=4, cols=1, shared_xaxes=True,
+                    subplot_titles=("Serie Original", "Tendencia", "Estacionalidad", "Residuales"))
+
+fig.add_trace(go.Scatter(x=MXN_series.index, y=decomposition.observed,
+                        mode='lines', name='Original'), row=1, col=1)
+fig.add_trace(go.Scatter(x=MXN_series.index, y=decomposition.trend,
+                        mode='lines', name='Tendencia'), row=2, col=1)
+fig.add_trace(go.Scatter(x=MXN_series.index, y=decomposition.seasonal,
+                        mode='lines', name='Estacionalidad'), row=3, col=1)
+fig.add_trace(go.Scatter(x=MXN_series.index, y=decomposition.resid,
+                        mode='lines', name='Residuales'), row=4, col=1)
+
+fig.update_layout(height=800, title_text="Descomposición de la Serie Temporal", showlegend=False)
+fig.show()
+```
+
+##Auto regresión
+```{python}
+
+
+inegi_data = pd.read_excel("./inegi_data.xlsx", parse_dates=['Periodo'])
+MXN_series = inegi_data[inegi_data['Periodo'].dt.year >= 2016].set_index('Periodo')['Cetes_28_Dias']
+
+
+
+
+
+plot_pacf(MXN_series, lags=15, method='ywm')  
+plt.title('Función de Autocorrelación Parcial (PACF)')
+plt.show()
+
+
+ar_model = AutoReg(MXN_series, lags=5, trend='n').fit() 
+
+# Mostrar coeficientes
+print("="*60)
+print("MODELO AUTORREGRESIVO (AR)")
+print("="*60)
+print(ar_model.summary())
+print("\nCoeficientes AR:")
+for i, coef in enumerate(ar_model.params, 1):
+    print(f"AR({i}): {coef:.6f}")
+
+## --------------------------------------------
+## 2. GRÁFICA (serie original vs ajustada)
+## --------------------------------------------
+
+plt.figure(figsize=(12, 6))
+plt.plot(MXN_series, label='Serie Original')
+plt.plot(ar_model.fittedvalues, label='Serie Ajustada', linestyle='--')
+plt.title('Comparación: Serie Original vs Ajustada')
+plt.ylabel('Tasa Cetes 28 Días')
+plt.xlabel('Fecha')
+plt.legend()
+plt.grid(True)
+plt.show()
+
+## --------------------------------------------
+## 3. RESIDUALES
+## --------------------------------------------
+
+residuals = ar_model.resid
+
+plt.figure(figsize=(12, 6))
+plt.plot(residuals)
+plt.axhline(y=0, color='r', linestyle='--')
+plt.title('Residuales del Modelo AR')
+plt.ylabel('Residuales')
+plt.xlabel('Fecha')
+plt.grid(True)
+plt.show()
+
+# Diagnóstico de residuales
+print("\n" + "="*60)
+print("DIAGNÓSTICO DE RESIDUALES")
+print("="*60)
+print(f"Media de residuales: {np.mean(residuals):.6f}")
+print(f"Desviación estándar: {np.std(residuals):.6f}")
+
+# Gráfico ACF de residuales
+from statsmodels.graphics.tsaplots import plot_acf
+plot_acf(residuals, lags=20)
+plt.title('ACF de Residuales')
+plt.show()
+```
+
+#Forecast
+```{python}
+
+
+
+inegi_data = pd.read_excel("./inegi_data.xlsx", parse_dates=['Periodo'])
+MXN_series = inegi_data[inegi_data['Periodo'].dt.year >= 2016].set_index('Periodo')['Cetes_28_Dias']
+
+
+ar_model = AutoReg(MXN_series, lags=5, trend='n').fit()
+
+# 3. pronóstico (12 periodos)
+forecast = ar_model.get_prediction(start=len(MXN_series), end=len(MXN_series)+11)
+forecast_values = forecast.predicted_mean
+confidence_intervals = forecast.conf_int()
+
+# 4.  fechas futuras  
+freq = pd.infer_freq(MXN_series.index)  
+last_date = MXN_series.index[-1]
+future_dates = pd.date_range(start=last_date, periods=12, freq=freq)  
+
+# 5. Gráfico
+plt.figure(figsize=(12, 6))
+plt.plot(MXN_series.index, MXN_series, label='Histórico')
+plt.plot(future_dates, forecast_values, 'r--', label='Pronóstico')
+plt.fill_between(future_dates, 
+                confidence_intervals.iloc[:, 0],
+                confidence_intervals.iloc[:, 1],
+                color='pink', alpha=0.3, label='IC 95%')
+
+plt.title('Pronóstico para Cetes 28 Días (12 periodos)')
+plt.xlabel('Fecha')
+plt.ylabel('Tasa')
+plt.legend()
+plt.grid(True)
+plt.show()
+
+# 6. Resultados en tabla
+forecast_df = pd.DataFrame({
+    'Fecha': future_dates,
+    'Pronóstico': forecast_values,
+    'Límite Inferior': confidence_intervals.iloc[:, 0],
+    'Límite Superior': confidence_intervals.iloc[:, 1]
+})
+print("\nPronóstico AR:")
+print(forecast_df.round(4))
+```
+
+
+
+
+
+
+
+
+
+
