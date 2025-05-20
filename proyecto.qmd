@@ -1,0 +1,332 @@
+---
+title: "Proyecto"
+autores: Muñiz Navarro Hector Eduardo,  Ortega Sanchez Amado Mauricio, Reyes Gutierrez Carlos Antonio
+format: html
+editor: visual
+---
+```{python}
+import matplotlib.pyplot as plt 
+import pandas as pd
+```
+
+
+
+```{python}
+datos = pd.read_excel("./datos_Maiz.xlsx")
+```
+
+```{r}
+library(readxl)
+datos_Maiz <- read_excel("./datos_Maiz.xlsx")
+View(datos_Maiz)
+```
+
+
+`
+
+```{python}
+print(datos.head())  
+print(datos.info())  
+print(datos.describe())  
+```
+```{python}
+ 
+datos['Cantidad_vendida'] = pd.to_numeric(datos['Total_Demanda'], errors='coerce')
+```
+
+```{python}
+import matplotlib.pyplot as plt
+import seaborn as sns
+
+plt.figure(figsize=(12, 6))
+sns.lineplot(data=datos, x='Periodo', y='Precio')  
+plt.title('Evolución del Precio del Maiz (2012-2024)')
+plt.xlabel('Fecha')
+plt.ylabel('Precio Promedio (MXN/Tonelada)')
+plt.xticks(rotation=45)
+plt.grid(True)
+plt.show()
+```
+
+**Diagrama de caja**
+```{python}
+plt.figure(figsize=(10, 6))
+sns.boxplot(data=datos, y='Precio')
+plt.title('Distribución de Precios')
+plt.xlabel()
+plt.ylabel('Precio (MXN/Tonelada)')
+plt.xticks(rotation=90)
+plt.show()
+```
+
+```{python}
+plt.figure(figsize=(10, 6))
+sns.scatterplot(data=datos, x='Total_Demanda', y='Precio', alpha=0.6)
+plt.title('Relación entre Cantidad demandada y precio')
+plt.xlabel('Cantidad Demandada (Toneladas)')
+plt.ylabel('Precio (MXN/Tonelada)')
+plt.grid(True)
+plt.show()
+```
+
+
+
+#Regresión lineal  demanda
+
+
+```{r}
+
+rm(list = ls())
+datos <- read_excel("./datos_Maiz.xlsx")  
+
+
+
+# Crear variable de DEMANDA REAL (excluye importaciones/exportaciones)
+datos$Demanda_real <- datos$Consumo_humano + datos$Autoconsumo + datos$Consumo_pecuario
+
+
+
+modelo_demanda <- lm(Demanda_real ~ Precio, data = datos)
+summary(modelo_demanda)
+
+# Gráfico de demanda vs. precio
+ggplot(datos, aes(x = Precio, y = Demanda_real)) +
+  geom_point(color = "#3498DB", size = 3) +
+  geom_smooth(method = "lm", se = FALSE, color = "#E74C3C") +
+  labs(
+    title = "Demanda Real vs. Precio (Modelo Básico)",
+    x = "Precio (MXN/kg)",
+    y = "Demanda Real (ton)"
+  ) +
+  theme_minimal()
+
+
+
+
+
+
+```
+
+
+```{r}
+# Datos censales 
+censos <- data.frame(
+  Año = c(2010, 2015, 2020),
+  Poblacion = c(112.3, 119.5, 126.0)
+)
+
+# Extrapolar hasta 2024
+ultimo_año_censal <- 2020
+poblacion_2020 <- 126.0
+crecimiento_anual <- (126.0 - 119.5) / 5  # 1.3 millones/año
+
+#dataframe hasta 2024
+datos_extendidos <- data.frame(Año = 2010:2024)
+datos_extendidos$Poblacion <- ifelse(
+  datos_extendidos$Año <= 2020,
+  approx(censos$Año, censos$Poblacion, xout = datos_extendidos$Año)$y,  # Interpola hasta 2020
+  poblacion_2020 + crecimiento_anual * (datos_extendidos$Año - 2020)    # Extrapola después de 2020
+)
+
+
+print(datos_extendidos)
+```
+
+```{r}
+
+
+rm(list = ls())
+library(readxl)
+library(ggplot2)
+
+
+datos <- read_excel("./datos_Maiz.xlsx")
+
+# DEMANDA REAL (excluye importaciones/exportaciones)
+datos$Demanda_real <- datos$Consumo_humano + datos$Autoconsumo + datos$Consumo_pecuario
+
+# Modelo de regresión con Precio y Población
+modelo_demanda <- lm(Demanda_real ~ Precio + Poblacion, data = datos)
+summary(modelo_demanda)
+
+# Gráfico de demanda vs. precio (color por población)
+ggplot(datos, aes(x = Precio, y = Demanda_real, color = Poblacion)) +
+  geom_point(size = 3, alpha = 0.7) +
+  geom_smooth(method = "lm", se = FALSE, aes(group = 1), color = "#F7463C") +
+  scale_color_gradient(low = "#3498DB", high = "#E74C3C", name = "Poblacion (millones)") +
+  labs(
+    title = "Demanda Real vs. Precio (ajustado por población)",
+    x = "Precio (MXN/kg)",
+    y = "Demanda Real (ton)"
+  ) +
+  theme_minimal() +
+  theme(legend.position = "bottom")
+
+# Gráfico de interacción entre Precio y Población (opcional)
+ggplot(datos, aes(x = Poblacion, y = Demanda_real, color = Precio)) +
+  geom_point(size = 3) +
+  scale_color_gradient(low = "#3498DB", high = "#E74C3C", name = "Precio (MXN/kg)") +
+  labs(
+    title = "Demanda Real vs. Población (color por precio)",
+    x = "Población (millones)",
+    y = "Demanda Real (ton)"
+  ) +
+  theme_minimal()
+
+
+
+
+
+
+```
+
+**Nuevos Datos**
+```{r}
+
+datos <- read_excel("./datos_MaizN.xlsx")  
+
+
+colnames(datos) <- gsub("[^[:alnum:]]", "_", colnames(datos))  
+
+
+modelo_demanda <- lm(`Total_Demanda` ~ `Precio`, data = datos)
+
+summary(modelo_demanda)
+
+
+library(ggplot2)
+ggplot(datos, aes(x = `Precio`, y = `Total_Demanda`)) +
+  geom_point(color = "blue") +
+  geom_smooth(method = "lm", se = FALSE, color = "red") +
+  labs(title = "Demanda vs Precio")
+```
+##El modelo de regresión muestra una relación negativa y estadísticamente significativa entre el precio y la demanda total de maíz, como predice la teoría económica básica. Por cada aumento de una unidad en el precio (por ejemplo, 1 MXN/kg), la demanda total disminuye en aproximadamente 2.64 unidades (toneladas), manteniendo todos los demás factores constantes. El intercepto (30,839.65) sugiere que, incluso con un precio teórico de cero, habría una demanda base debido a necesidades esenciales (consumo humano, pecuario, etc.). El alto R² (0.8493) indica que el precio explica el 84.93% de la variabilidad en la demanda, lo que refleja una fuerte asociación. 
+
+
+```{r}
+# Ajuste de función de oferta: Q = c + dP
+modelo_oferta <- lm(`Total_Oferta` ~ `Precio`, data = datos)
+
+summary(modelo_oferta)
+
+
+coef(modelo_oferta)
+
+
+ggplot(datos, aes(x = Precio, y = Total_Oferta)) +
+  geom_point(color = "darkgreen") +
+  geom_smooth(method = "lm", se = FALSE, color = "orange", linewidth = 1) +
+  labs(
+    title = "Función de Oferta Estimada",
+    x = "Precio promedio ($/Tonelada)",
+    y = "Cantidad vendida (Toneladas)"
+  ) +
+  theme_minimal()
+
+```
+
+#El modelo de regresión muestra una relación positiva y estadísticamente significativa entre el precio y la oferta total de maíz, lo que coincide con la teoría económica de la oferta. Por cada aumento de una unidad en el precio (por ejemplo, 1 MXN/kg), la oferta total aumenta en aproximadamente 0.877 unidades (toneladas), manteniendo constantes otros factores. El intercepto (20,074.47) indica que, incluso con un precio teórico de cero, existiría una oferta base debido a la producción mínima o compromisos contractuales. El R² (0.5187) revela que el precio explica el 51.87% de la variabilidad en la oferta, lo que sugiere que otros factores (como costos de producción, clima o tecnología) también influyen significativamente.
+
+```{r}
+library(ggplot2)
+
+#  funciones de oferta y demanda
+demanda <- function(P) { 30839.65 - 2.6411 * P }
+oferta <- function(P) { 20074.47 + 0.8772 * P }
+
+
+precios <- seq(0, 5000, by = 100)
+
+
+df <- data.frame(
+  Precio = precios,
+  Demanda = demanda(precios),
+  Oferta = oferta(precios)
+)
+
+# Punto de equilibrio
+equilibrio <- data.frame(Precio = 3059.75, Cantidad = 22700.64)
+
+# Gráfico
+ggplot(df, aes(x = Precio)) +
+  geom_line(aes(y = Demanda, color = "Demanda"), linewidth = 1.5) +
+  geom_line(aes(y = Oferta, color = "Oferta"), linewidth = 1.5) +
+  geom_point(aes(x = 3059.75, y = 22700.64), color = "black", size = 3) +
+  geom_vline(xintercept = 3059.75, linetype = "dashed", color = "gray") +
+  geom_hline(yintercept = 22700.64, linetype = "dashed", color = "gray") +
+  annotate("text", x = 3200, y = 24000, label = paste0("Equilibrio: (", round(3059.75, 2), ", ", round(22700.64, 2), ")"), hjust = 0) +
+  labs(
+    title = "Equilibrio de Mercado: Oferta y Demanda de Maíz",
+    x = "Precio (MXN/kg)",
+    y = "Cantidad (ton)",
+    color = ""
+  ) +
+  scale_color_manual(values = c("Demanda" = "#E74C3C", "Oferta" = "#3498DB")) +
+  theme_minimal() +
+  theme(legend.position = "top")
+```
+
+**Modelo de cobweb**
+
+```{r}
+
+intercepto_demanda <- 30839.65
+pendiente_demanda <- -2.6411
+
+intercepto_oferta <- 20074.47
+pendiente_oferta <- 0.8772
+
+# Condiciones iniciales
+precio_inicial <- 4869  # Precio arbitrario inicial 
+periodos <- 20 
+
+
+precios <- numeric(periodos)
+cantidades <- numeric(periodos)
+precios[1] <- precio_inicial
+
+# Simulación del modelo Cobweb
+for (t in 2:periodos) {
+  # Oferta en t depende del precio en t-1
+  cantidades[t] <- intercepto_oferta + pendiente_oferta * precios[t-1]
+  
+  # Demanda 
+  precios[t] <- (intercepto_demanda - cantidades[t]) / abs(pendiente_demanda)
+}
+
+
+resultados_cobweb <- data.frame(
+  Periodo = 1:periodos,
+  Precio = precios,
+  Cantidad = cantidades
+)
+
+# Gráfico del modelo Cobweb
+library(ggplot2)
+ggplot(resultados_cobweb, aes(x = Periodo)) +
+  geom_line(aes(y = Precio, color = "Precio"), linewidth = 1) +
+  geom_line(aes(y = Cantidad / 50, color = "Cantidad (escalada)"), linewidth = 1) + 
+  scale_y_continuous(
+    name = "Precio (MXN/kg)",
+    sec.axis = sec_axis(~ . * 50, name = "Cantidad (ton)")
+  ) +
+  labs(
+    title = "Modelo Cobweb: Dinámica de Precios y Cantidad de Maíz",
+    x = "Período (t)",
+    color = "Variable"
+  ) +
+  theme_minimal() +
+  scale_color_manual(values = c("Precio" = "#E74C3C", "Cantidad (escalada)" = "#3498DB"))
+```
+
+#El gráfico muestra un comportamiento explosivo en la dinámica de precios y cantidad de maíz, donde las oscilaciones se amplían con cada período. Los precios fluctúan entre 1,000 y 5,000 MXN/kg, mientras que la cantidad varía desde 0 hasta 150,000 toneladas, indicando una inestabilidad extrema en el mercado. Esta divergencia ocurre porque la oferta (dependiente del precio anterior) reacciona con demasiado retraso y magnitud frente a cambios en la demanda, creando ciclos de sobreproducción y escasez cada vez más severos. 
+
+#En un mercado equilibrado, el modelo Cobweb muestra cómo el precio y la cantidad de maíz convergen hacia el punto de equilibrio ( a lo largo del tiempo, gracias a una oferta y demanda bien ajustadas. Las oscilaciones iniciales (causadas por desfases entre la reacción de productores y consumidores) se amortiguan progresivamente, reflejando un mercado donde los productores ajustan racionalmente su producción basándose en precios pasados, y los consumidores responden a precios actuales, logrando estabilidad a mediano plazo. Este comportamiento ideal asegura que shocks temporales no desestabilicen el mercado, beneficiando tanto a agricultores (con precios predecibles) como a consumidores (con disponibilidad constante). 
+
+
+
+
+
+
+
+
