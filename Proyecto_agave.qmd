@@ -1,0 +1,719 @@
+---
+title: "proyecto agave"
+author: "Carlos Reyes, Hector Muñiz, Mauricio Ortega"
+format: html
+editor: visual
+---
+
+```{python}
+import matplotlib.pyplot as plt 
+import numpy as np
+import pandas as pd
+import seaborn as sns
+```
+
+```{python}
+datos = pd.read_excel("./datos_Agave.xlsx")
+```
+
+```{r}
+library(readxl)
+datos_Agave <- read_excel("./datos_Agave.xlsx")
+View(datos_Agave)
+```
+
+```{python}
+print(datos.head())  
+print(datos.info())  
+print(datos.describe())  
+```
+
+#Historia El modelo de telaraña se remonta a la década de 1930 y, aunque simple, sigue siendo significativo porque muestra la importancia fundamental de las expectativas .
+
+Para dar una idea de cómo funciona el modelo y por qué las expectativas son importantes, imaginemos el siguiente escenario.
+
+Existe, por ejemplo, un mercado de soja en el que los precios y las cantidades comercializadas dependen de las decisiones de los compradores y vendedores.
+
+Los compradores están representados por una curva de demanda: compran más a precios bajos y menos a precios altos.
+
+Los vendedores tienen una curva de oferta: desean vender más a precios altos y menos a precios bajos.
+
+Sin embargo, los vendedores (que son agricultores) necesitan tiempo para cultivar sus cosechas.
+
+Supongamos ahora que el precio actualmente es alto.
+
+Al ver este precio alto, y quizás esperando que se mantenga así por algún tiempo, los agricultores plantan muchos campos con soja.
+
+En el siguiente período, la alta oferta resultante inunda el mercado, provocando una caída del precio.
+
+Al ver este precio bajo, los agricultores ahora abandonan el cultivo de soja, restringiendo la oferta y provocando que el precio suba nuevamente.
+
+Se puede imaginar cómo estas dinámicas podrían provocar ciclos en precios y cantidades que persistan en el tiempo.
+
+El modelo de telaraña pone estas ideas en ecuaciones para que podamos intentar cuantificarlas y estudiar las condiciones bajo las cuales los ciclos persisten (o desaparecen).
+
+El artículo \[ Harlow, 1960 \] utiliza el teorema de la telaraña para explicar los precios del cerdo en los EE. UU. entre 1920 y 1950.
+
+```{python}
+hog_prices = [55, 57, 80, 70, 60, 65, 72, 65, 51, 49, 45, 80, 85,
+              78, 80, 68, 52, 65, 83, 78, 60, 62, 80, 87, 81, 70,
+              69, 65, 62, 85, 87, 65, 63, 75, 80, 62]
+years = np.arange(1924, 1960)
+fig, ax = plt.subplots()
+ax.plot(years, hog_prices, '-o', ms=4, label='hog price')
+ax.set_xlabel('year')
+ax.set_ylabel('dollars')
+ax.legend()
+ax.grid()
+plt.show()
+```
+
+#Modelo
+
+# Modelo de Mercado de Soja
+
+Función de Demanda: D(pₜ) = a - b·pₜ
+
+Donde: - a, b son constantes positivas - pₜ es el precio actual en el tiempo t - D(pₜ) es la cantidad demandada (ej. en miles de toneladas)
+
+Función de Oferta (no lineal): S(pₜᵉ) = tanh(λ·(pₜᵉ - c)) + d
+
+Donde: - λ (lambda) es la sensibilidad de la oferta - c, d son constantes de ajuste - pₜᵉ es el precio esperado en tiempo t - tanh es la función tangente hiperbólica
+
+```{python}
+class Market:
+
+    def __init__(self,
+                 a=8,      # demand parameter
+                 b=1,      # demand parameter
+                 c=6,      # supply parameter
+                 d=1,      # supply parameter
+                 λ=2.0):   # supply parameter
+        self.a, self.b, self.c, self.d = a, b, c, d
+        self.λ = λ
+
+    def demand(self, p):
+        a, b = self.a, self.b
+        return a - b * p
+
+    def supply(self, p):
+        c, d, λ = self.c, self.d, self.λ
+        return np.tanh(λ * (p - c)) + d
+```
+
+```{python}
+p_grid = np.linspace(5, 8, 200)
+m = Market()
+fig, ax = plt.subplots()
+
+ax.plot(p_grid, m.demand(p_grid), label="$D$")
+ax.plot(p_grid, m.supply(p_grid), label="$S$")
+ax.set_xlabel("price")
+ax.set_ylabel("quantity")
+ax.legend()
+
+plt.show()
+```
+
+# Modelo de Formación de Expectativas de Precios
+
+# ============================================
+
+# Supuesto de expectativas:
+
+# pₜᵉ = f(pₜ₋₁, pₜ₋₂) \[Ecuación 26.1\]
+
+# Donde:
+
+# - pₜᵉ: precio esperado en tiempo t
+
+# - pₜ₋₁: precio en tiempo t-1
+
+# - pₜ₋₂: precio en tiempo t-2
+
+# - f(): función de expectativas
+
+# Dinámica de precios resultante:
+
+# pₜ = -(1/b) \[S(f(pₜ₋₁, pₜ₋₂)) - a\] \[Ecuación 26.2\]
+
+# Componentes:
+
+# - S(): Función de oferta (tanh(λ(pₜᵉ - c)) + d)
+
+# - a, b: Parámetros de demanda
+
+# - λ, c, d: Parámetros de oferta
+
+# Notas:
+
+# 1. Los productores forman expectativas basadas en precios pasados
+
+# 2. Se pueden agregar más rezagos (pₜ₋₃, etc.)
+
+# 3. La dinámica final depende de:
+
+# \* Valores de los parámetros
+
+# \* Forma específica de la función f()
+
+Para avanzar más en nuestro análisis necesitamos especificar la función ; es decir, cómo se forman las expectativas.
+
+Comencemos con las expectativas ingenuas, que se refieren al caso en el que los productores esperan que el precio spot del próximo período sea el mismo que el del período actual.
+
+g(p) = -(1/b)\[S(p) - a\]
+
+```{python}
+def g(model, current_price):
+    """
+    Function to find the next price given the current price
+    and Market model
+    """
+    a, b = model.a, model.b
+    next_price = - (model.supply(current_price) - a) / b
+    return next_price
+```
+
+Intentemos entender cómo evolucionarán los precios utilizando un diagrama de 45 grados, que es una herramienta para estudiar la dinámica unidimensional.
+
+```{python}
+def plot45(model, pmin, pmax, p0, num_arrows=5):
+    """
+    Function to plot a 45 degree plot
+
+    Parameters
+    ==========
+
+    model: Market model
+
+    pmin: Lower price limit
+
+    pmax: Upper price limit
+
+    p0: Initial value of price (needed to simulate prices)
+
+    num_arrows: Number of simulations to plot
+    """
+    pgrid = np.linspace(pmin, pmax, 200)
+
+    fig, ax = plt.subplots()
+    ax.set_xlim(pmin, pmax)
+    ax.set_ylim(pmin, pmax)
+
+    hw = (pmax - pmin) * 0.01
+    hl = 2 * hw
+    arrow_args = dict(fc="k", ec="k", head_width=hw,
+            length_includes_head=True, lw=1,
+            alpha=0.6, head_length=hl)
+
+    ax.plot(pgrid, g(model, pgrid), 'b-',
+            lw=2, alpha=0.6, label='g')
+    ax.plot(pgrid, pgrid, lw=1, alpha=0.7, label=r'$45\degree$')
+
+    x = p0
+    xticks = [pmin]
+    xtick_labels = [pmin]
+
+    for i in range(num_arrows):
+        if i == 0:
+            ax.arrow(x, 0.0, 0.0, g(model, x),
+                     **arrow_args)
+        else:
+            ax.arrow(x, x, 0.0, g(model, x) - x,
+                     **arrow_args)
+            ax.plot((x, x), (0, x), ls='dotted')
+
+        ax.arrow(x, g(model, x),
+                 g(model, x) - x, 0, **arrow_args)
+        xticks.append(x)
+        xtick_labels.append(r'$p_{}$'.format(str(i)))
+
+        x = g(model, x)
+        xticks.append(x)
+        xtick_labels.append(r'$p_{}$'.format(str(i+1)))
+        ax.plot((x, x), (0, x), '->', alpha=0.5, color='orange')
+
+    xticks.append(pmax)
+    xtick_labels.append(pmax)
+    ax.set_ylabel(r'$p_{t+1}$')
+    ax.set_xlabel(r'$p_t$')
+    ax.set_xticks(xticks)
+    ax.set_yticks(xticks)
+    ax.set_xticklabels(xtick_labels)
+    ax.set_yticklabels(xtick_labels)
+
+    bbox = (0., 1.04, 1., .104)
+    legend_args = {'bbox_to_anchor': bbox, 'loc': 'upper right'}
+
+    ax.legend(ncol=2, frameon=False, **legend_args, fontsize=14)
+    plt.show()
+```
+
+```{python}
+m = Market()
+plot45(m, 0, 9, 2, num_arrows=3)
+```
+
+```{python}
+# ---------------------------------------------------------------
+# FUNCIÓN g(p) = - (1/b) * [S(p) - a] - Explicación
+# ---------------------------------------------------------------
+# Esta función calcula el AJUSTE DEL PRECIO en el mercado de soja:
+# 
+# 1. S(p) = Oferta actual (lo que los productores están dispuestos a vender)
+# 2. a = Demanda máxima (cantidad que se compraría si el precio fuera cero)
+# 3. b = Sensibilidad de la demanda al precio (cómo cambia la demanda cuando el precio sube)
+#
+# Cómo funciona:
+# - Si S(p) > a: Hay EXCESO de oferta → g(p) es NEGATIVO (el precio BAJA)
+# - Si S(p) < a: Hay ESCASEZ → g(p) es POSITIVO (el precio SUBE)
+# - La magnitud del cambio depende de 1/b (si b es grande, el ajuste es pequeño)
+# ---------------------------------------------------------------
+
+
+```
+
+```{python}
+def ts_plot_price(model,             # Market model
+                  p0,                # Initial price
+                  y_a=3, y_b= 12,    # Controls y-axis
+                  ts_length=10):     # Length of time series
+    """
+    Function to simulate and plot the time series of price.
+
+    """
+    fig, ax = plt.subplots()
+    ax.set_xlabel(r'$t$', fontsize=12)
+    ax.set_ylabel(r'$p_t$', fontsize=12)
+    p = np.empty(ts_length)
+    p[0] = p0
+    for t in range(1, ts_length):
+        p[t] = g(model, p[t-1])
+    ax.plot(np.arange(ts_length),
+            p,
+            'bo-',
+            alpha=0.6,
+            lw=2,
+            label=r'$p_t$')
+    ax.legend(loc='best', fontsize=10)
+    ax.set_ylim(y_a, y_b)
+    ax.set_xticks(np.arange(ts_length))
+    plt.show()
+    
+    
+```
+
+```{python}
+ts_plot_price(m, 4, ts_length=15)
+```
+
+Vemos que se ha formado un ciclo y el ciclo es persistente.
+
+El ciclo es “estable”, en el sentido de que los precios convergen hacia él desde la mayoría de las condiciones iniciales.
+
+**Expectativas adaptativas**
+
+se refiere al caso en el que los productores forman expectativas para el precio del próximo período como un promedio ponderado de su última estimación y el precio spot actual.
+
+```{python}
+def find_next_price_adaptive(model, curr_price_exp):
+    """
+    Function to find the next price given the current price expectation
+    and Market model
+    """
+    return - (model.supply(curr_price_exp) - model.a) / model.b
+```
+
+```{python}
+def ts_price_plot_adaptive(model, p0, ts_length=10, α=[1.0, 0.9, 0.75]):
+    fig, axs = plt.subplots(1, len(α), figsize=(12, 5))
+    for i_plot, a in enumerate(α):
+        pe_last = p0
+        p_values = np.empty(ts_length)
+        p_values[0] = p0
+        for i in range(1, ts_length):
+            p_values[i] = find_next_price_adaptive(model, pe_last)
+            pe_last = a*p_values[i] + (1 - a)*pe_last
+
+        axs[i_plot].plot(np.arange(ts_length), p_values)
+        axs[i_plot].set_title(r'$\alpha={}$'.format(a))
+        axs[i_plot].set_xlabel('t')
+        axs[i_plot].set_ylabel('price')
+    plt.show()
+```
+
+```{python}
+ts_price_plot_adaptive(m, 5, ts_length=30)
+```
+Tenga en cuenta que si alpha = 1 , las expectativas adaptativas son simplemente expectativas ingenuas.
+
+Disminuir el valor de alpha  aumenta la ponderación de las expectativas previas, lo que estabiliza los precios esperados.
+
+Esta mayor estabilidad se puede observar en las cifras.
+
+#Hipotesis del equipo
+
+**Al observar los cambios en los 3 ejemplos donde se va reduciendo la sensibilidad, hemos llegado a plantear que lo mas accesible para el mercado es que los productores agricolas tengan una sensibilidad un poco mas baja para que de esta manera no se vean afectados los demas y el tiempo requerido sea menor **
+
+
+```{python}
+import matplotlib.pyplot as plt
+import seaborn as sns
+
+plt.figure(figsize=(8, 6))
+sns.lineplot(data=datos, x='Periodo', y='Precio_kg')  
+plt.title('Evolución del Precio del agave (2017-2023)')
+plt.xlabel('Fecha')
+plt.ylabel('Precio Promedio (MXN/Kilo)')
+plt.xticks(rotation=45)
+plt.grid(True)
+plt.show()
+```
+
+**Diagrama de caja**
+
+```{python}
+plt.figure(figsize=(10, 6))
+sns.boxplot(data=datos, y='Precio_kg')
+plt.title('Distribución de Precios')
+plt.ylabel('Precio (MXN/kg)')
+plt.xticks(rotation=90)
+plt.show()
+```
+
+```{python}
+plt.figure(figsize=(10, 6))
+sns.scatterplot(data=datos, x='Total_Consumo', y='Precio_kg', alpha=0.6)
+plt.title('Relación entre Cantidad demandada y precio')
+plt.xlabel('Cantidad Demandada (Toneladas)')
+plt.ylabel('Precio (MXN/kg)')
+plt.grid(True)
+plt.show()
+```
+
+```{r}
+colnames(datos_Agave) <- gsub("[^[:alnum:]]", "_", colnames(datos_Agave))  
+
+
+modelo_demanda <- lm(`Total_Consumo` ~ `Precio_kg`, data = datos_Agave)
+
+summary(modelo_demanda)
+
+
+library(ggplot2)
+ggplot(datos_Agave, aes(x = `Precio_kg`, y = `Total_Consumo`)) +
+  geom_point(color = "blue") +
+  geom_smooth(method = "lm", se = FALSE, color = "red") +
+  labs(title = "Demanda vs Precio")
+```
+
+```{r}
+# Ajuste de función de oferta: Q = c + dP
+modelo_oferta <- lm(`Total_Producción_millones` ~ `Precio_kg`, data = datos_Agave)
+
+summary(modelo_oferta)
+
+
+coef(modelo_oferta)
+
+
+ggplot(datos_Agave, aes(x = Precio_kg, y = Total_Producción_millones)) +
+  geom_point(color = "darkgreen") +
+  geom_smooth(method = "lm", se = FALSE, color = "orange", linewidth = 1) +
+  labs(
+    title = "Función de Oferta Estimada",
+    x = "Precio promedio ($/kg)",
+    y = "Cantidad vendida (Toneladas)"
+  ) +
+  theme_minimal()
+
+```
+
+**La ecuación estimada (Producción = 658,996.44 + 44,388.77·Precio_kg) revela una relación positiva y estadísticamente significativa entre precio y producción. El intercepto de 658,996.44 millones indica una elevada producción base incluso a precio cero, sugiriendo la existencia de factores estructurales (como inversiones fijas o políticas de subsistencia) que mantienen la oferta independientemente del precio. La pendiente de 44,388.77 muestra que por cada peso que aumenta el precio por kilo, la producción se incrementa en 44,388.77 millones, evidenciando una oferta altamente elástica y sensible a los incentivos de mercado. Esto implica que los productores tienen capacidad para escalar rápidamente su producción ante señales de precios favorables, posiblemente debido a capacidad ociosa, ciclos productivos flexibles o expectativas optimistas. El R² de 0.7092 confirma que el precio explica una parte significativa de las variaciones en la producción.**
+
+**Función de demanda inversa**
+
+```{r}
+
+library(ggplot2)
+
+
+modelo_oferta <- lm(Total_Producción_millones ~ Precio_kg, data = datos_Agave)
+
+
+summary(modelo_oferta)
+
+
+#  forma: Qd = a - b*P
+mean_Q <- mean(datos_Agave$Total_Producción_millones)
+mean_P <- mean(datos_Agave$Precio_kg)
+
+
+b_demanda <- -abs(coef(modelo_oferta)[2]) # Pendiente negativa
+a_demanda <- mean_Q + abs(coef(modelo_oferta)[2]) * mean_P # Intercepto
+
+# Función de demanda estimada
+demanda_estimada <- function(P) {
+  a_demanda + b_demanda * P
+}
+
+
+ggplot(datos_Agave) +
+  geom_point(aes(x = Precio_kg, y = Total_Producción_millones, 
+                 color = "Datos observados (equilibrio)"), size = 3) +
+  geom_smooth(aes(x = Precio_kg, y = Total_Producción_millones), 
+              method = "lm", se = FALSE, color = "orange", linewidth = 1.5,
+              linetype = "solid") +
+  stat_function(fun = demanda_estimada, color = "red", linewidth = 1.5) +
+  labs(
+    title = "Funciones de Oferta y Demanda Estimadas",
+    subtitle = "Oferta (naranja) con pendiente positiva | Demanda (roja) con pendiente negativa",
+    x = "Precio promedio ($/kg)",
+    y = "Cantidad (Millones)",
+    color = ""
+  ) +
+  scale_color_manual(values = c("Datos observados (equilibrio)" = "darkblue")) +
+  theme_minimal() +
+  theme(legend.position = "bottom",
+        plot.title = element_text(size = 14, face = "bold"),
+        plot.subtitle = element_text(size = 12))
+
+# Mostrar ecuaciones estimadas
+cat("--- Función de Oferta Estimada ---\n")
+cat(paste0("Q_oferta = ", round(coef(modelo_oferta)[1], 2), " + ", 
+           round(coef(modelo_oferta)[2], 2), "P\n\n"))
+
+cat("--- Función de Demanda Estimada ---\n")
+cat(paste0("Q_demanda = ", round(a_demanda, 2), " - ", 
+           round(abs(b_demanda), 2), "P\n"))
+
+#  Punto de equilibrio teórico
+P_equilibrio <- (a_demanda - coef(modelo_oferta)[1]) / 
+                (coef(modelo_oferta)[2] + abs(b_demanda))
+Q_equilibrio <- coef(modelo_oferta)[1] + coef(modelo_oferta)[2] * P_equilibrio
+
+cat("\n--- Punto de Equilibrio Teórico ---\n")
+cat(paste0("P* = $", round(P_equilibrio, 2), " por kg\n"))
+cat(paste0("Q* = ", round(Q_equilibrio, 2), " millones\n"))
+```
+
+**Modelo de cobweb**
+
+```{r}
+
+
+library(ggplot2)
+library(dplyr)  
+
+
+Q_oferta <- function(P) {
+  coef(modelo_oferta)[1] + coef(modelo_oferta)[2] * P
+}
+
+Q_demanda <- function(P) {
+  a_demanda + b_demanda * P
+}
+
+
+periodos <- 10
+P0 <- mean(datos_Agave$Precio_kg) * 0.8
+
+#Implementación del modelo Cobweb 
+simulacion <- data.frame(t = 0:periodos, P = NA, Q = NA)
+simulacion$P[1] <- P0
+
+for (t in 2:(periodos+1)) {
+  simulacion$Q[t] <- Q_oferta(simulacion$P[t-1])
+  simulacion$P[t] <- (simulacion$Q[t] - a_demanda) / b_demanda
+}
+
+
+cobweb_plot <- ggplot() +
+  # Funciones de oferta y demanda
+  stat_function(aes(color = "Demanda"), fun = Q_demanda, size = 1.2) +
+  stat_function(aes(color = "Oferta"), fun = Q_oferta, size = 1.2) +
+  
+  # Trayectoria Cobweb 
+  geom_path(data = simulacion %>% 
+              mutate(Q_plot = Q_oferta(P)),
+            aes(x = P, y = Q_plot), 
+            color = "gray50", linetype = "dotted") +
+  
+  # Puntos de la simulación
+  geom_point(data = simulacion %>% 
+               mutate(Q_plot = Q_oferta(P)),
+             aes(x = P, y = Q_plot), size = 3) +
+  
+  
+  labs(title = "Modelo Cobweb del Mercado de Agave",
+       subtitle = paste("Precio inicial =", round(P0, 2)),
+       x = "Precio ($/kg)",
+       y = "Cantidad (Millones)",
+       color = "Función") +
+  scale_color_manual(values = c("Demanda" = "red", "Oferta" = "orange")) +
+  theme_minimal() +
+  theme(legend.position = "bottom",
+        plot.title = element_text(face = "bold"))
+
+print(cobweb_plot)
+
+#  Gráfico de series de tiempo 
+series_plot <- ggplot(simulacion, aes(x = t)) +
+  geom_line(aes(y = P, color = "Precio"), linewidth = 1.2) +
+  geom_line(aes(y = Q, color = "Cantidad"), linewidth = 1.2) +
+  labs(title = "Evolución Temporal de Precios y Cantidades",
+       x = "Periodo",
+       y = "Valor",
+       color = "Variable") +
+  scale_color_manual(values = c("Precio" = "blue", "Cantidad" = "green4")) +
+  theme_minimal() +
+  theme(legend.position = "bottom")
+
+print(series_plot)
+
+#  Análisis de estabilidad
+cat("\n--- Análisis de Estabilidad ---\n")
+cat("Pendiente de Oferta:", coef(modelo_oferta)[2], "\n")
+cat("Pendiente de Demanda:", b_demanda, "\n")
+
+ratio_pendientes <- abs(b_demanda/coef(modelo_oferta)[2])
+cat("Relación de pendientes (|Demanda/Oferta|):", round(ratio_pendientes, 2), "\n")
+
+if(ratio_pendientes > 1) {
+  cat("Resultado: El sistema es ESTABLE (converge al equilibrio)\n")
+} else if(ratio_pendientes < 1) {
+  cat("Resultado: El sistema es INESTABLE (diverge del equilibrio)\n")
+} else {
+  cat("Resultado: El sistema muestra ciclos CONSTANTES\n")
+}
+```
+
+# La dinámica de precios y cantidades muestra un ajuste cíclico típico del mecanismo Cobweb, donde los productores basan sus decisiones en precios pasados, generando oscilaciones entre excesos de oferta y escasez. Los valores entre 0.0 y 10.0 reflejan la magnitud de estos desequilibrios: cuando la producción (respuesta al precio anterior) supera la demanda, los precios caen (ej. 2.5), incentivando menor producción en el siguiente periodo, lo que luego deriva en escasez y precios altos (ej. 7.5). Esta alternancia sugiere que el mercado converge lentamente al equilibrio (si la pendiente de demanda es más pronunciada que la de oferta) o diverge (en caso contrario). El modelo destaca la inestabilidad inherente cuando las expectativas son puramente retrospectivas y la producción tiene rezagos. Para estabilizarlo, se requerirían mecanismos como contratos a futuro o mejor información de mercado.
+
+
+
+
+
+
+#Precio vs Area sembrada
+```{r}
+# Ajuste de función de oferta: Q = c + dP
+modelo_area <- lm(`Superficie_Sembrada` ~ `Precio_kg`, data = datos_Agave)
+
+summary(modelo_area)
+
+
+coef(modelo_area)
+
+
+ggplot(datos_Agave, aes(x = Precio_kg, y = Superficie_Sembrada)) +
+  geom_point(color = "darkgreen") +
+  geom_smooth(method = "lm", se = FALSE, color = "orange", linewidth = 1) +
+  labs(
+    title = "Superficie vs Precio",
+    x = "Precio promedio ($/kg)",
+    y = "Cantidad sembrada (Hectareas)"
+  ) +
+  theme_minimal()
+
+```
+#Hipotesis
+**Al  analizar esta regresión nos podemos percatar que quizas en la demanda conforme aumentó el precio la demanda no tuvo un cambio muy significativo, pero aquí analizando la regresión es muy notable que los productores conforme el precio iba en aumento cada año ellos estaban aumentando cada vez la superficie que iban sembrando incluso llegaron a afectar otros productos como el maiz ya que mucha superficie de tierra que se utilizaba para esa producción la cambiaron completamente para sembrar agave, pero como hemos ido analizando y siguiendo las leyes del mercado lo que puede llegar a suceder es que como el agave tarda 8 años en madurar el siguiente año 2026 la area cultivada del 2018 ya sera la pruducción y lo que puede suceder es que inundara el mercado haciendo posiblemente que de mucha oferta que habra no solo en 2026 si no en los siguientes 4 años entonces el precio va a bajar demasiado, y la unica solución que creemos que los pueda salvar es que las empresas tequileras se expandan y comiencen  a producir de mas para así hagan contrapeso con la demanda **
+
+
+**Versión continua**
+
+```{python}
+#dp/dt = α [g(S(p)) - p]
+```
+
+#α: Velocidad de ajuste #El precio ahora varía suavemente en el tiempo, sin saltos entre periodos. #La ecuación mide cómo la brecha entre el precio actual y el precio de equilibrio, afecta la tasa de cambio
+
+```{r}
+# =====================================================
+# MODELO COBWEB CONTINUO (Versión con Ecuación Diferencial)
+# =====================================================
+
+
+library(deSolve)
+
+#  PARÁMETROS DEL MODELO
+# --------------------------------
+# a: Demanda máxima cuando el precio es cero
+# b: Sensibilidad de la demanda al precio
+# lambda: Sensibilidad de la oferta
+# c, d: Parámetros de la función de oferta no lineal (tanh)
+# alpha: Velocidad de ajuste del precio (suaviza la transición)
+parametros <- list(
+  a = 50,
+  b = 1.2,
+  lambda = 0.5,
+  c = 30,
+  d = 20,
+  alpha = 0.3  # Entre más bajo, más suave el ajuste
+)
+
+# 2. FUNCIÓN DE OFERTA NO LINEAL 
+# -------------------------------------
+S <- function(p) {
+  tanh(parametros$lambda * (p - parametros$c)) + parametros$d
+}
+
+# 3. ECUACIÓN DIFERENCIAL DEL MODELO
+# ----------------------------------
+# dp/dt = alpha * [g(S(p)) - p]
+# donde g(S(p)) = -(1/b)*(S(p) - a)
+cobweb_continuo <- function(t, p, params) {
+  g_p <- -(1/params$b) * (S(p) - params$a)
+  list(params$alpha * (g_p - p))
+}
+
+
+times <- seq(0, 50, by = 0.1)  
+p_inicial <- 35  # Precio inicial
+
+solucion <- ode(
+  y = p_inicial,
+  times = times,
+  func = cobweb_continuo,
+  parms = parametros
+)
+
+
+plot(solucion, 
+     xlab = "Tiempo Continuo",
+     ylab = "Precio (p)",
+     main = "Dinámica Continua de Precios - Modelo Cobweb",
+     col = "darkblue",
+     lwd = 2,
+     type = "l")
+
+# Línea de equilibrio (opcional)
+abline(h = 30, col = "red", lty = 2)  # Precio de equilibrio estimado
+legend("topright", 
+       legend = c("Trayectoria de precios", "Equilibrio"),
+       col = c("darkblue", "red"),
+       lty = c(1, 2),
+       bty = "n")
+
+# =====================================================
+# INTERPRETACIÓN:
+# - La curva muestra cómo el precio evoluciona suavemente
+# - Sin saltos abruptos entre periodos (versión discreta)
+# - alpha controla la velocidad de convergencia/divergencia
+# =====================================================
+```
+
+#A través de este modelo con datos no discretos pudimos observar que la sensibilidad tiene mucha importancia y como hemos visto en el modelo original el cual tiene mas fluctuaciónes podemos llegar a concluir seria que la solución mas ideal sería que los productores del agave disminuyan un poco sus expectatvas sobre el precio ya que ellos en lugar de verse beneficiados, se ven afectados los unos a los otros y lo que van a causar a lo largo del tiempo es que estos ciclos se sigan repitiendo y aunque se llegue al equilibrio constantemente van a volver a desequilibrarse por el impulso de sembrar mas y querer ganar mas. 
+
+
+#Fuentes de consulta
+# https://nube.agricultura.gob.mx/cierre_agricola/ 
+De este apartado se sacaron los datos del area sembrada por hectarea
+
+# https://agaves.pro/analisis-del-precio-del-agave-y-su-impacto-en-la-industria-tequilera/ 
+De este aparartado se saco el precio y la demanda del agave
+
+
+
+
